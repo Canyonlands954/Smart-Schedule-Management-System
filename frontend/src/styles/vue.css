@@ -1,0 +1,204 @@
+.vue-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #17253866;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  backdrop-filter: blur(3px);
+}
+.vue-dialog > .panel {
+  width: 660px;
+  max-width: 100%;
+  max-height: calc(100dvh - 28px);
+  overflow: auto;
+  padding: 0 24px 24px;
+  box-shadow: 0 24px 90px #1b2c4230;
+}
+.vue-dialog .modalhead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.vue-dialog .form label input,
+.vue-dialog .form label select,
+.vue-dialog .form label textarea {
+  width: 100%;
+}
+.week-grid .week-date {
+  position: static;
+}
+.monthgrid .month-cell {
+  min-height: 120px;
+}
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+.checkbox-label input {
+  width: auto !important;
+  display: inline !important;
+  margin: 0 !important;
+}
+.entity-dialog .form-actions {
+  margin-top: 15px;
+}
+.notification-row {
+  align-items: flex-start;
+}
+.execution-card {
+  cursor: pointer;
+}
+.execution-heading {
+  color: var(--ink);
+}
+.ai-empty {
+  min-height: 300px;
+}
+.flow-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 15px 0;
+}
+.tag button {
+  padding: 0;
+  min-height: 0;
+  border: 0;
+  background: none;
+}
+.vue-dialog .modalhead h3 {
+  overflow-wrap: anywhere;
+}
+.json-preview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #f7f9fc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+}
+.form label > small {
+  font-weight: 400;
+}
+.page-tabs button {
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .vue-dialog > .panel {
+    padding: 0 18px 18px;
+  }
+  .monthgrid {
+    min-width: 620px;
+  }
+  .calendar-scroll {
+    overflow: auto;
+  }
+  .form-actions {
+    flex-wrap: wrap;
+  }
+  .vue-dialog .form-actions button {
+    min-width: 90px;
+  }
+}
+.clarification-box {
+  margin: 16px;
+  padding: 16px;
+  border: 1px solid #b8cef3;
+  background: #f1f6fd;
+  border-radius: 10px;
+}
+.clarification-box p {
+  margin: 8px 0;
+  line-height: 1.65;
+}
+.quick-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.reference-list {
+  padding: 0 16px 16px;
+  display: grid;
+  gap: 8px;
+}
+.reference-list button {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  padding: 12px;
+}
+.planning-options {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+}
+.planning-card {
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #d8e2f0;
+  border-radius: 10px;
+}
+.planning-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+.planning-card p {
+  margin: 8px 0;
+}
+.planning-card ul {
+  padding-left: 20px;
+  margin: 12px 0;
+  color: #52647d;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.planning-card button {
+  width: 100%;
+}
+.weekday-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.weekday-options label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.weekday-options input {
+  width: auto;
+}
+.chatlog .bubble {
+  white-space: pre-wrap;
+}
+.model-config-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.model-config-status button {
+  margin-left: auto;
+}
+.model-enabled {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+.model-enabled input {
+  width: auto !important;
+}
+.model-config-actions {
+  flex-wrap: wrap;
+}
+.model-config-form {
+  margin-top: 16px;
+}
