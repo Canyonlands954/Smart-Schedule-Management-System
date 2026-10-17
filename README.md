@@ -10,9 +10,11 @@
 
 ## 开始使用
 
-本机需要 Java 17+、Maven 3.9+、Node.js 22.12+、PowerShell 7 和已启动的 Docker Desktop。
+本机需要 Java 17+、Maven 3.9+、Node.js 22.12+ 和已启动的 Docker Desktop。本机启动兼容 Windows 自带的 PowerShell 5.1，也支持 PowerShell 7。
 
 在本目录运行 `./start.ps1`，或双击 `start.cmd`，访问 `http://127.0.0.1:8765/`。首次启动会生成本机数据库密码、启动 PostgreSQL，并构建和启动前后端。首次使用在本机注册管理员。
+
+如果终端提示无法识别 `pwsh`，在本目录执行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start.ps1`，或双击 `start.cmd`；启动入口会在找不到 PowerShell 7 时自动使用 Windows PowerShell。
 
 已有版本的数据导入、生产构建、AI 配置与备份见 [部署说明](DEPLOYMENT.md)。当前架构、事务与兼容边界见 [架构说明](ARCHITECTURE.md)，操作流程见 [使用说明](USER_GUIDE.md)。
 

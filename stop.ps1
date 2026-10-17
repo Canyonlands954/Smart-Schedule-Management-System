@@ -1,8 +1,8 @@
 $ErrorActionPreference='Stop'
 Set-Location -LiteralPath $PSScriptRoot
 if (Test-Path -LiteralPath '.runtime/pids.json') {
-    $records=@(Get-Content -LiteralPath '.runtime/pids.json' -Raw | ConvertFrom-Json)
-    foreach ($record in $records) {
+    $records=Get-Content -LiteralPath '.runtime/pids.json' -Raw | ConvertFrom-Json
+    foreach ($record in @($records)) {
         $process=Get-Process -Id $record.id -ErrorAction SilentlyContinue
         # PowerShell 7.5+ may deserialize ISO strings to DateTime automatically.
         $recordedStart=[datetime]$record.started

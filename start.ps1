@@ -1,6 +1,12 @@
 param([string]$ImportSource = '')
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
+foreach ($toolHome in @($env:JAVA_HOME,$env:MAVEN_HOME,$env:M2_HOME)) {
+    if ($toolHome) {
+        $toolBin=Join-Path $toolHome 'bin'
+        if (Test-Path -LiteralPath $toolBin) { $env:PATH="$toolBin;$env:PATH" }
+    }
+}
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     foreach ($dockerFolder in @((Join-Path $env:LOCALAPPDATA 'Programs/DockerDesktop/resources/bin'),(Join-Path $env:ProgramFiles 'Docker/Docker/resources/bin'))) {
         if (Test-Path -LiteralPath (Join-Path $dockerFolder 'docker.exe')) { $env:PATH="$dockerFolder;$env:PATH";break }
@@ -27,7 +33,10 @@ function Test-Api {
     try { $health=Invoke-RestMethod 'http://127.0.0.1:18865/api/health' -TimeoutSec 2; return $health.architecture -eq 'spring-boot-postgresql' } catch { return $false }
 }
 $ownedProcesses=@()
-if (Test-Path -LiteralPath '.runtime/pids.json') { $ownedProcesses=@(Get-Content -LiteralPath '.runtime/pids.json' -Raw | ConvertFrom-Json) }
+if (Test-Path -LiteralPath '.runtime/pids.json') {
+    $ownedProcesses=Get-Content -LiteralPath '.runtime/pids.json' -Raw | ConvertFrom-Json
+    $ownedProcesses=@($ownedProcesses)
+}
 if (-not (Test-Api)) {
     $jarFile='backend/target/schedule-api-2.0.0.jar'
     $needsBuild=-not (Test-Path -LiteralPath $jarFile)
@@ -43,7 +52,7 @@ if (-not (Test-Api)) {
     if ($ImportSource) { $env:IMPORT_SOURCE=(Resolve-Path -LiteralPath $ImportSource).Path }
     $apiProcess=Start-Process -FilePath (Get-Command java).Source -ArgumentList @('-jar','.runtime/api.jar') -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -RedirectStandardOutput '.runtime/api.out.log' -RedirectStandardError '.runtime/api.err.log' -PassThru
     $ownedProcesses+=@{id=$apiProcess.Id;started=$apiProcess.StartTime.ToUniversalTime().ToString('o');kind='api'}
-    $ownedProcesses | ConvertTo-Json -AsArray | Set-Content -LiteralPath '.runtime/pids.json' -Encoding utf8
+    ConvertTo-Json -InputObject @($ownedProcesses) | Set-Content -LiteralPath '.runtime/pids.json' -Encoding utf8
     Remove-Item Env:IMPORT_SOURCE -ErrorAction SilentlyContinue
     $ready=$false
     for ($attempt=0;$attempt -lt 40;$attempt++) {
@@ -53,7 +62,7 @@ if (-not (Test-Api)) {
     }
     if (-not $ready) { throw 'API startup timed out. Check the logs.' }
 }
-try { $page=Invoke-WebRequest 'http://127.0.0.1:8765/' -TimeoutSec 2; $webReady=$page.Content.Contains('/src/main.ts') -or $page.Content.Contains('/assets/index-') } catch { $webReady=$false }
+try { $page=Invoke-WebRequest 'http://127.0.0.1:8765/' -UseBasicParsing -TimeoutSec 2; $webReady=$page.Content.Contains('/src/main.ts') -or $page.Content.Contains('/assets/index-') } catch { $webReady=$false }
 if (-not $webReady) {
     if (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue) { throw 'Port 8765 is occupied. Stop the old application before starting this version.' }
     if (-not (Test-Path -LiteralPath 'frontend/node_modules/vite/bin/vite.js')) {
@@ -62,7 +71,7 @@ if (-not $webReady) {
     }
     $webProcess=Start-Process -FilePath (Get-Command node).Source -ArgumentList @('node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','8765','--strictPort') -WorkingDirectory (Join-Path $PSScriptRoot 'frontend') -WindowStyle Hidden -RedirectStandardOutput (Join-Path $PSScriptRoot '.runtime/web.out.log') -RedirectStandardError (Join-Path $PSScriptRoot '.runtime/web.err.log') -PassThru
     $ownedProcesses+=@{id=$webProcess.Id;started=$webProcess.StartTime.ToUniversalTime().ToString('o');kind='web'}
-    $ownedProcesses | ConvertTo-Json -AsArray | Set-Content -LiteralPath '.runtime/pids.json' -Encoding utf8
+    ConvertTo-Json -InputObject @($ownedProcesses) | Set-Content -LiteralPath '.runtime/pids.json' -Encoding utf8
 }
 Write-Host 'Xushi enterprise is running: http://127.0.0.1:8765/'
 Write-Host 'Data is stored in PostgreSQL. Use stop.ps1 to stop the app; database data is retained.'

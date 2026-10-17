@@ -4,11 +4,21 @@
 
 ## 本机启动
 
-需要 Java 17+、Maven 3.9+、Node.js 22.12+、PowerShell 7，以及运行中的 Docker Desktop（Linux 容器）。在 `enterprise` 目录执行：
+需要 Java 17+、Maven 3.9+、Node.js 22.12+，以及运行中的 Docker Desktop（Linux 容器）。本机启动支持 Windows PowerShell 5.1 和 PowerShell 7。在 `enterprise` 目录执行：
 
 ```powershell
 ./start.ps1
 ```
+
+如果脚本执行策略阻止运行，或提示无法识别 `pwsh`，可在同一目录执行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+也可以双击 `start.cmd`，它会优先使用可用的 PowerShell 7，否则自动使用 Windows 自带的 PowerShell。
+
+如果 Java、Maven 已安装但未加入 PATH，启动脚本也会从 `JAVA_HOME`、`MAVEN_HOME` 或 `M2_HOME` 对应的 `bin` 目录查找工具；Docker 会同时检查 Windows 上的常见安装目录。这些补充仅作用于本次启动进程。
 
 默认前端地址 `http://127.0.0.1:8765/`，Java API 位于 `127.0.0.1:18865`，PostgreSQL 映射至 `127.0.0.1:55432`。首位管理员在本机注册；源码没有预设管理员密码。启动脚本会生成 `.env` 数据库密码，构建缺失的运行文件并记录应用进程。
 
