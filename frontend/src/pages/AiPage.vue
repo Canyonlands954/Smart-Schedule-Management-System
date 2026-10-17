@@ -6,6 +6,8 @@ import { api } from "../services/api";
 import type { Draft, ScheduleEvent } from "../domain/types";
 import PageHead from "../components/PageHead.vue";
 import ScheduleEditor from "../components/ScheduleEditor.vue";
+import KnowledgeAnswer from "../components/KnowledgeAnswer.vue";
+import type { KnowledgeSuggestion } from "../domain/knowledge";
 import { label } from "../domain/time";
 const store = useWorkspace(),
   {
@@ -17,6 +19,7 @@ const store = useWorkspace(),
   } = storeToRefs(store),
   busy = ref(false),
   error = ref("");
+const useKnowledge = ref(false);
 interface Reply {
   draft: Draft | null;
   conversation_id: string;
@@ -73,6 +76,8 @@ async function parse(
       draft_updates: draft.value ?? undefined,
       reference_event_id: reference,
       recipient_id: recipient,
+      use_knowledge: store.admin && useKnowledge.value,
+      knowledge_query_id: store.aiKnowledgeQuery || undefined,
     });
     chat.value.push(
       { role: "user", content: message },
@@ -82,6 +87,7 @@ async function parse(
     conversation.value = result.conversation_id;
     revision.value = result.revision;
     remember();
+    store.aiKnowledgeQuery = "";
     text.value = "";
   } catch (e) {
     error.value = e instanceof Error ? e.message : "解析失败";
@@ -96,6 +102,7 @@ function reset() {
   conversation.value = "";
   revision.value = 0;
   error.value = "";
+  store.aiKnowledgeQuery = "";
   sessionStorage.removeItem("xushi-ai-conversation");
 }
 function edits(value: Partial<ScheduleEvent>) {
@@ -113,6 +120,25 @@ function sent() {
   });
 }
 const questions = computed(() => draft.value?.questions ?? []);
+async function adopt(s: KnowledgeSuggestion) {
+  if (!draft.value || busy.value) return;
+  if (s.kind === "duration") {
+    await parse("持续" + s.value + "分钟");
+    return;
+  }
+  if (s.kind === "checklist") {
+    const checklist = [...(draft.value.checklist ?? [])];
+    if (!checklist.some((x) => x.label === String(s.value)))
+      checklist.push({ label: String(s.value), done: false });
+    edits({ checklist });
+  } else
+    edits({
+      notes: [draft.value.notes, String(s.value)].filter(Boolean).join("\n"),
+    });
+  await parse(
+    s.kind === "checklist" ? "采用资料建议的准备事项" : "采用资料建议的备注",
+  );
+}
 const quickReplies = computed(() => {
   const q = questions.value.join(" "),
     result: string[] = [];
@@ -206,6 +232,16 @@ const quickReplies = computed(() => {
           </button>
         </div>
         <form class="composer" @submit.prevent="parse()">
+          <label v-if="store.admin" class="knowledge-check"
+            ><input
+              v-model="useKnowledge"
+              type="checkbox"
+              :disabled="busy"
+            />结合企业知识库提供安排建议</label
+          >
+          <p v-if="store.aiKnowledgeQuery" class="muted">
+            已带入知识问答依据，解析后可核对并采用建议。
+          </p>
           <label class="composer-label" for="ai-message">日程安排内容</label
           ><textarea
             id="ai-message"
@@ -251,6 +287,20 @@ const quickReplies = computed(() => {
           }}</span>
         </div>
         <div v-if="draft" class="panelbody">
+          <details
+            v-if="draft.knowledge_assistance"
+            class="knowledge-draft-evidence"
+            open
+          >
+            <summary>知识依据与待确认建议</summary>
+            <KnowledgeAnswer
+              :key="draft.knowledge_assistance.query_id"
+              :reply="draft.knowledge_assistance"
+              adoptable
+              :busy="busy"
+              @adopt="adopt"
+            />
+          </details>
           <div class="parse-evidence">
             <h3>当前业务上下文</h3>
             <p v-for="(value, key) in draft.evidence" :key="key">

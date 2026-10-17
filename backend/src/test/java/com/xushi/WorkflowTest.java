@@ -10,6 +10,7 @@ import com.xushi.ai.ModelGateway;
 import com.xushi.auth.Passwords;
 import com.xushi.common.*;
 import com.xushi.data.Database;
+import com.xushi.knowledge.*;
 import java.net.*;
 import java.net.http.*;
 import java.time.*;
@@ -24,10 +25,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @SpringBootTest(
   webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
   properties = {
-    "spring.datasource.url=jdbc:postgresql://127.0.0.1:55432/schedule_test",
+    "spring.datasource.url=${TEST_DB_URL:jdbc:postgresql://127.0.0.1:55432/schedule_test}",
     "schedule.import-source=",
     "schedule.ai.key=",
     "schedule.ai.encryption-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "schedule.knowledge.worker-enabled=false",
+    "schedule.knowledge.directory=.runtime/test-knowledge",
   }
 )
 class WorkflowTest {
@@ -46,6 +49,15 @@ class WorkflowTest {
 
   @MockitoBean
   ModelGateway model;
+
+  @MockitoBean
+  EmbeddingGateway embeddings;
+
+  @Autowired
+  DocumentIngestionService ingestion;
+
+  @Autowired
+  KnowledgeRetrievalService retrieval;
 
   Client admin, zhao, chen;
   long team, zid, cid;
@@ -132,6 +144,7 @@ class WorkflowTest {
       "UPDATE scheduling_policy SET settings=\'{\"weekdays\":[1,2,3,4,5],\"work_start\":\"09:00\",\"work_end\":\"18:00\",\"step_minutes\":30,\"horizon_days\":7,\"holidays\":[],\"workdays\":[]}\'::jsonb WHERE id=1"
     );
     db.update("INSERT INTO ai_model_settings(id) VALUES(1)");
+    db.update("INSERT INTO knowledge_settings(id) VALUES(1)");
     admin = new Client();
     zhao = new Client();
     chen = new Client();
@@ -1158,6 +1171,752 @@ class WorkflowTest {
           db.rows("SELECT detail FROM audit WHERE action LIKE 'ai.config.%'")
         )
         .contains("fixture-secret")
+    );
+  }
+
+  Map<String, Object> uploadKnowledge(
+    Client client,
+    Long did,
+    long bid,
+    String filename,
+    String content,
+    boolean external,
+    int expected
+  ) {
+    try {
+      String boundary = "RagTestBoundary" + UUID.randomUUID();
+      var metadata = map(
+        "base_id",
+        bid,
+        "title",
+        "项目例会管理办法",
+        "external_allowed",
+        external,
+        "effective_from",
+        LocalDate.now(ZONE).toString()
+      );
+      if (did != null) metadata.put(
+        "revision",
+        db
+          .one("SELECT revision FROM knowledge_documents WHERE id=?", did)
+          .get("revision")
+      );
+      String body =
+        "--" +
+        boundary +
+        "\r\nContent-Disposition: form-data; name=\"metadata\"\r\n\r\n" +
+        json.write(metadata) +
+        "\r\n--" +
+        boundary +
+        "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"" +
+        filename +
+        "\"\r\nContent-Type: application/octet-stream\r\n\r\n" +
+        content +
+        "\r\n--" +
+        boundary +
+        "--\r\n";
+      var r = client.http.send(
+        HttpRequest.newBuilder(
+          URI.create(
+            "http://127.0.0.1:" +
+              port +
+              "/api/knowledge/documents" +
+              (did == null ? "" : "/" + did + "/versions")
+          )
+        )
+          .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+          .POST(HttpRequest.BodyPublishers.ofString(body))
+          .build(),
+        HttpResponse.BodyHandlers.ofString()
+      );
+      assertEquals(expected, r.statusCode(), r.body());
+      return json.read(r.body());
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  long knowledgeBase(String scope, List<Long> grants) {
+    return id(
+      admin
+        .call(
+          "/knowledge/bases",
+          "POST",
+          map(
+            "name",
+            "研发知识库",
+            "description",
+            "项目制度",
+            "scope",
+            scope,
+            "team_id",
+            scope.equals("team") ? team : null,
+            "user_ids",
+            grants
+          ),
+          200
+        )
+        .get("id")
+    );
+  }
+
+  void publishKnowledge(long did, long vid) {
+    admin.call(
+      "/knowledge/documents/" + did + "/publish",
+      "POST",
+      map(
+        "version_id",
+        vid,
+        "revision",
+        db
+          .one("SELECT revision FROM knowledge_documents WHERE id=?", did)
+          .get("revision")
+      ),
+      200
+    );
+  }
+
+  Map<String, Object> readyKnowledge(long bid, boolean external) {
+    var result = uploadKnowledge(
+      admin,
+      null,
+      bid,
+      "meeting.md",
+      "# 项目例会管理办法\n\n项目例会持续60分钟。会前需准备项目进度表，并由指定负责人组织全组参会。",
+      external,
+      200
+    );
+    assertTrue(ingestion.runOne());
+    publishKnowledge(
+      id(result.get("document_id")),
+      id(result.get("version_id"))
+    );
+    return result;
+  }
+
+  void vectorConfig(long revision, int dimensions) {
+    admin.call(
+      "/admin/embedding-config",
+      "PUT",
+      map(
+        "revision",
+        revision,
+        "enabled",
+        true,
+        "base_url",
+        "https://embedding.example.test/v1",
+        "model",
+        "test-vector-" + dimensions,
+        "dimensions",
+        dimensions,
+        "api_key",
+        "embedding-fixture-secret"
+      ),
+      200
+    );
+    when(
+      embeddings.embed(anyList(), any(EmbeddingConfiguration.Connection.class))
+    ).thenAnswer(inv -> {
+      List<String> input = inv.getArgument(0);
+      var c = inv.getArgument(1, EmbeddingConfiguration.Connection.class);
+      var vector = new ArrayList<Double>();
+      for (int i = 0; i < c.dimensions(); i++) vector.add(i == 0 ? 1.0 : 0.0);
+      return input
+        .stream()
+        .map(x -> List.copyOf(vector))
+        .toList();
+    });
+    when(embeddings.literal(anyList())).thenAnswer(inv ->
+      json.write(inv.getArgument(0))
+    );
+  }
+
+  void knowledgeAnswerModel() {
+    admin.call(
+      "/admin/model-config",
+      "PUT",
+      modelSettings(0, true, "fixture-secret"),
+      200
+    );
+    when(
+      model.answer(anyMap(), any(ModelConfiguration.Connection.class))
+    ).thenAnswer(inv -> {
+      var context = inv.getArgument(0, Map.class);
+      var c = objects(context.get("evidence"))
+        .stream()
+        .filter(x -> s(x, "content").contains("项目例会持续60分钟。"))
+        .findFirst()
+        .orElseThrow();
+      return map(
+        "statements",
+        List.of(
+          map(
+            "text",
+            "项目例会建议持续60分钟，并准备进度表。",
+            "source_id",
+            c.get("source_id"),
+            "quote",
+            "项目例会持续60分钟。"
+          )
+        ),
+        "suggestions",
+        List.of(
+          map(
+            "kind",
+            "duration",
+            "value",
+            60,
+            "source_id",
+            c.get("source_id"),
+            "quote",
+            "项目例会持续60分钟。"
+          ),
+          map(
+            "kind",
+            "checklist",
+            "value",
+            "准备项目进度表",
+            "source_id",
+            c.get("source_id"),
+            "quote",
+            "会前需准备项目进度表"
+          )
+        )
+      );
+    });
+  }
+
+  @Test
+  void knowledgeLifecycleEnforcesAclOnSearchPreviewAndDownload() {
+    long bid = knowledgeBase("private", List.of(zid));
+    var doc = readyKnowledge(bid, false);
+    var results = zhao.call(
+      "/knowledge/search",
+      "POST",
+      map("question", "项目例会准备资料"),
+      200
+    );
+    assertFalse(objects(results.get("items")).isEmpty());
+    long chunk = id(objects(results.get("items")).get(0).get("id"));
+    assertTrue(
+      objects(
+        chen
+          .call(
+            "/knowledge/search",
+            "POST",
+            map("question", "项目例会准备资料", "semantic", true),
+            200
+          )
+          .get("items")
+      ).isEmpty()
+    );
+    chen.call("/knowledge/chunks/" + chunk, "GET", null, 404);
+    chen.call(
+      "/knowledge/documents/" + doc.get("document_id") + "/file",
+      "GET",
+      null,
+      404
+    );
+    zhao.call("/knowledge/ask", "POST", map("question", "例会要求"), 403);
+    zhao.call("/admin/embedding-config", "GET", null, 403);
+    uploadKnowledge(zhao, null, bid, "wrong.md", "资料", true, 403);
+    verifyNoInteractions(model, embeddings);
+    admin.call(
+      "/knowledge/bases/" + bid,
+      "PUT",
+      map(
+        "revision",
+        1,
+        "name",
+        "研发知识库",
+        "description",
+        "",
+        "scope",
+        "private",
+        "user_ids",
+        List.of()
+      ),
+      200
+    );
+    zhao.call("/knowledge/chunks/" + chunk, "GET", null, 404);
+    assertTrue(
+      objects(
+        zhao.call("/knowledge/documents", "GET", null, 200).get("items")
+      ).isEmpty()
+    );
+  }
+
+  @Test
+  void knowledgeRagCitationsAndExplicitAdoptionKeepSingleRecipient() {
+    long bid = knowledgeBase("all", List.of());
+    readyKnowledge(bid, true);
+    knowledgeAnswerModel();
+    var reply = admin.call(
+      "/knowledge/ask",
+      "POST",
+      map("question", "项目例会持续多久，需要准备什么", "intent", "schedule"),
+      200
+    );
+    assertEquals("answer", reply.get("mode"));
+    assertEquals(2, objects(reply.get("suggestions")).size());
+    assertFalse(objects(reply.get("citations")).isEmpty());
+    zhao.call("/knowledge/queries/" + reply.get("query_id"), "GET", null, 403);
+    admin.call(
+      "/knowledge/queries/" + reply.get("query_id") + "/feedback",
+      "POST",
+      map("value", 1),
+      200
+    );
+    admin.call("/admin/model-config", "PUT", modelSettings(1, false, ""), 200);
+    var first = admin.call(
+      "/ai/parse",
+      "POST",
+      map(
+        "text",
+        "让三组的小赵明天下午三点到5号会议室开会，带上全组",
+        "knowledge_query_id",
+        reply.get("query_id")
+      ),
+      200
+    );
+    var draft = object(first.get("draft"));
+    assertFalse(Boolean.TRUE.equals(draft.get("complete")));
+    assertNull(draft.get("end"));
+    assertEquals(zid, id(draft.get("target_id")));
+    assertEquals(0, db.count("SELECT count(*) FROM events"));
+    var second = admin.call(
+      "/ai/parse",
+      "POST",
+      map(
+        "text",
+        "持续60分钟",
+        "conversation_id",
+        first.get("conversation_id"),
+        "revision",
+        first.get("revision"),
+        "draft_updates",
+        map("checklist", List.of(map("label", "准备项目进度表", "done", false)))
+      ),
+      200
+    );
+    var complete = object(second.get("draft"));
+    assertTrue(Boolean.TRUE.equals(complete.get("complete")));
+    var payload = new LinkedHashMap<>(complete);
+    payload.put("source", "ai");
+    payload.put("request_id", UUID.randomUUID().toString());
+    admin.call("/events", "POST", payload, 201);
+    assertEquals(1, db.count("SELECT count(*) FROM events"));
+    assertEquals(
+      1,
+      db.count("SELECT count(*) FROM events WHERE target_id=?", zid)
+    );
+    assertEquals(
+      0,
+      db.count("SELECT count(*) FROM notifications WHERE user_id=?", cid)
+    );
+    assertEquals(
+      1,
+      id(
+        object(
+          admin.call("/knowledge/stats", "GET", null, 200).get("queries")
+        ).get("helpful")
+      )
+    );
+  }
+
+  @Test
+  void vectorSpacesAreEncryptedAndModelChangesDoNotMixDimensions() {
+    long bid = knowledgeBase("all", List.of());
+    vectorConfig(0, 3);
+    var doc = readyKnowledge(bid, true);
+    var result = admin.call(
+      "/knowledge/search",
+      "POST",
+      map("question", "项目例会", "semantic", true),
+      200
+    );
+    assertEquals("hybrid", result.get("mode"));
+    String config = json.write(
+      admin.call("/admin/embedding-config", "GET", null, 200)
+    );
+    assertFalse(config.contains("embedding-fixture-secret"));
+    assertFalse(
+      s(
+        db.one("SELECT encrypted_payload FROM knowledge_settings"),
+        "encrypted_payload"
+      ).contains("embedding-fixture-secret")
+    );
+    assertEquals(
+      3,
+      db.count("SELECT vector_dims(embedding) FROM knowledge_chunks LIMIT 1")
+    );
+    long oldChunk = id(objects(result.get("items")).get(0).get("id"));
+    vectorConfig(1, 2);
+    admin.call(
+      "/knowledge/search",
+      "POST",
+      map("question", "项目例会", "semantic", true),
+      200
+    );
+    admin.call(
+      "/knowledge/versions/" + doc.get("version_id") + "/retry",
+      "POST",
+      map(),
+      200
+    );
+    assertTrue(ingestion.runOne());
+    assertEquals(
+      2,
+      db.count("SELECT vector_dims(embedding) FROM knowledge_chunks LIMIT 1")
+    );
+    admin.call("/knowledge/chunks/" + oldChunk, "GET", null, 404);
+    admin.call("/admin/embedding-config", "PUT", map("revision", 0), 409);
+    assertFalse(
+      json
+        .write(
+          db.rows("SELECT detail FROM audit WHERE action LIKE 'knowledge.%'")
+        )
+        .contains("embedding-fixture-secret")
+    );
+  }
+
+  @Test
+  void unapprovedDocumentsAreNeverSentToModelsAndFailedNewVersionKeepsOldPublication() {
+    long bid = knowledgeBase("all", List.of());
+    vectorConfig(0, 3);
+    var doc = readyKnowledge(bid, false);
+    knowledgeAnswerModel();
+    var answer = admin.call(
+      "/knowledge/ask",
+      "POST",
+      map("question", "项目例会"),
+      200
+    );
+    assertEquals("abstain", answer.get("mode"));
+    verify(model, never()).answer(anyMap(), any());
+    // Query embeddings contain only the question; unapproved source text never enters ingestion/model calls.
+    verify(embeddings, times(1)).embed(eq(List.of("项目例会")), any());
+    var newer = uploadKnowledge(
+      admin,
+      id(doc.get("document_id")),
+      bid,
+      "broken.pdf",
+      "This is not a PDF",
+      false,
+      200
+    );
+    assertTrue(ingestion.runOne());
+    assertEquals(
+      "failed",
+      db
+        .one(
+          "SELECT status FROM knowledge_versions WHERE id=?",
+          newer.get("version_id")
+        )
+        .get("status")
+    );
+    assertEquals(
+      id(doc.get("version_id")),
+      id(
+        db
+          .one(
+            "SELECT published_version_id FROM knowledge_documents WHERE id=?",
+            doc.get("document_id")
+          )
+          .get("published_version_id")
+      )
+    );
+    assertFalse(
+      objects(
+        zhao
+          .call("/knowledge/search", "POST", map("question", "项目例会"), 200)
+          .get("items")
+      ).isEmpty()
+    );
+  }
+
+  @Test
+  void removedEvidenceInvalidatesSavedAnswersAndInFlightResponses() {
+    long bid = knowledgeBase("all", List.of());
+    var doc = readyKnowledge(bid, true);
+    knowledgeAnswerModel();
+    var reply = admin.call(
+      "/knowledge/ask",
+      "POST",
+      map("question", "项目例会"),
+      200
+    );
+    long did = id(doc.get("document_id"));
+    admin.call(
+      "/knowledge/documents/" + did + "/unpublish",
+      "POST",
+      map(
+        "revision",
+        db
+          .one("SELECT revision FROM knowledge_documents WHERE id=?", did)
+          .get("revision")
+      ),
+      200
+    );
+    var redacted = admin.call(
+      "/knowledge/queries/" + reply.get("query_id"),
+      "GET",
+      null,
+      200
+    );
+    assertEquals("revoked", redacted.get("mode"));
+    assertTrue(objects(redacted.get("statements")).isEmpty());
+    publishKnowledge(did, id(doc.get("version_id")));
+    when(model.answer(anyMap(), any())).thenAnswer(inv -> {
+      admin.call(
+        "/knowledge/documents/" + did + "/unpublish",
+        "POST",
+        map(
+          "revision",
+          db
+            .one("SELECT revision FROM knowledge_documents WHERE id=?", did)
+            .get("revision")
+        ),
+        200
+      );
+      return map("statements", List.of(), "suggestions", List.of());
+    });
+    admin.call("/knowledge/ask", "POST", map("question", "项目例会"), 409);
+    assertEquals(1, db.count("SELECT count(*) FROM knowledge_queries"));
+  }
+
+  @Test
+  void unsupportedModelReferencesAreRejectedAndChineseTermsRetrieveExpectedDocuments() {
+    long bid = knowledgeBase("all", List.of());
+    readyKnowledge(bid, true);
+    knowledgeAnswerModel();
+    for (String q : List.of(
+      "项目例会持续多久",
+      "例会需要什么进度资料",
+      "项目进度表准备",
+      "负责人如何组织参会"
+    ))
+      assertFalse(
+        objects(
+          zhao
+            .call("/knowledge/search", "POST", map("question", q), 200)
+            .get("items")
+        ).isEmpty(),
+        q
+      );
+    assertTrue(
+      objects(
+        zhao
+          .call(
+            "/knowledge/search",
+            "POST",
+            map("question", "量子纠缠实验"),
+            200
+          )
+          .get("items")
+      ).isEmpty()
+    );
+    when(model.answer(anyMap(), any())).thenReturn(
+      map(
+        "statements",
+        List.of(
+          map("text", "伪造回答", "source_id", 9999999, "quote", "不存在的内容")
+        ),
+        "suggestions",
+        List.of()
+      )
+    );
+    var answer = admin.call(
+      "/knowledge/ask",
+      "POST",
+      map("question", "项目例会"),
+      200
+    );
+    assertEquals("abstain", answer.get("mode"));
+    assertTrue(objects(answer.get("statements")).isEmpty());
+    assertEquals(0, db.count("SELECT count(*) FROM events"));
+  }
+
+  @Test
+  void interruptedIngestionResumesAndUnpublishedPreviewIsAdminOnly() {
+    long bid = knowledgeBase("all", List.of());
+    var doc = uploadKnowledge(
+      admin,
+      null,
+      bid,
+      "meeting.md",
+      "项目例会持续60分钟，准备项目进度表。",
+      false,
+      200
+    );
+    long vid = id(doc.get("version_id")),
+      did = id(doc.get("document_id"));
+    db.update(
+      "UPDATE knowledge_jobs SET status='processing',attempts=1,lease_token=?::uuid,lease_until=now()-interval '1 minute' WHERE version_id=?",
+      UUID.randomUUID().toString(),
+      vid
+    );
+    assertTrue(ingestion.runOne());
+    assertFalse(ingestion.runOne());
+    assertEquals(
+      2,
+      db.count("SELECT attempts FROM knowledge_jobs WHERE version_id=?", vid)
+    );
+    assertFalse(
+      objects(
+        admin
+          .call("/knowledge/versions/" + vid + "/preview", "GET", null, 200)
+          .get("items")
+      ).isEmpty()
+    );
+    zhao.call("/knowledge/versions/" + vid + "/preview", "GET", null, 403);
+    assertTrue(
+      objects(
+        zhao
+          .call("/knowledge/search", "POST", map("question", "项目例会"), 200)
+          .get("items")
+      ).isEmpty()
+    );
+    uploadKnowledge(
+      admin,
+      did,
+      bid,
+      "meeting.md",
+      "项目例会持续60分钟，准备项目进度表。",
+      false,
+      409
+    );
+    assertEquals(
+      1,
+      db.count(
+        "SELECT count(*) FROM knowledge_versions WHERE document_id=?",
+        did
+      )
+    );
+    publishKnowledge(did, vid);
+    db.update(
+      "UPDATE knowledge_versions SET effective_from=CURRENT_DATE-2,effective_until=CURRENT_DATE-1 WHERE id=?",
+      vid
+    );
+    assertTrue(
+      objects(
+        zhao
+          .call("/knowledge/search", "POST", map("question", "项目例会"), 200)
+          .get("items")
+      ).isEmpty()
+    );
+  }
+
+  @Test
+  void knowledgeQueriesAreOwnerScopedAndProviderFailureFallsBackToSources() {
+    long bid = knowledgeBase("all", List.of());
+    readyKnowledge(bid, true);
+    knowledgeAnswerModel();
+    when(model.answer(anyMap(), any())).thenThrow(new Problem("临时错误", 502));
+    var answer = admin.call(
+      "/knowledge/ask",
+      "POST",
+      map("question", "项目例会"),
+      200
+    );
+    assertEquals("excerpts", answer.get("mode"));
+    assertFalse(objects(answer.get("citations")).isEmpty());
+    db.insert(
+      "INSERT INTO users(username,name,password,role) VALUES(?,?,?,'admin')",
+      "otheradmin",
+      "另一管理员",
+      passwords.encode(password)
+    );
+    var other = new Client();
+    other.call(
+      "/auth/login",
+      "POST",
+      map("username", "otheradmin", "password", password),
+      200
+    );
+    other.call(
+      "/knowledge/queries/" + answer.get("query_id"),
+      "GET",
+      null,
+      404
+    );
+    other.call(
+      "/knowledge/queries/" + answer.get("query_id") + "/feedback",
+      "POST",
+      map("value", 1),
+      404
+    );
+  }
+
+  @Test
+  void knowledgeFollowupsKeepOriginalTopicAndOnlyReturnUsedSources() {
+    long bid = knowledgeBase("all", List.of());
+    readyKnowledge(bid, true);
+    knowledgeAnswerModel();
+    var first = admin.call(
+      "/knowledge/ask",
+      "POST",
+      map("question", "项目例会管理办法"),
+      200
+    );
+    var second = admin.call(
+      "/knowledge/ask",
+      "POST",
+      map(
+        "question",
+        "需要准备什么",
+        "previous_query_id",
+        first.get("query_id")
+      ),
+      200
+    );
+    var third = admin.call(
+      "/knowledge/ask",
+      "POST",
+      map("question", "时长呢", "previous_query_id", second.get("query_id")),
+      200
+    );
+    assertEquals("answer", third.get("mode"));
+    assertEquals(1, objects(third.get("citations")).size());
+    var saved = db.one(
+      "SELECT question FROM knowledge_queries WHERE id=?::uuid",
+      third.get("query_id")
+    );
+    assertTrue(s(saved, "question").contains("项目例会管理办法"));
+    assertTrue(s(saved, "question").contains("需要准备什么"));
+    assertTrue(s(saved, "question").contains("时长呢"));
+    long did = db.count(
+      "SELECT id FROM knowledge_documents WHERE base_id=?",
+      bid
+    );
+    var newer = uploadKnowledge(
+      admin,
+      did,
+      bid,
+      "updated.md",
+      "项目例会持续90分钟。请准备最新的进度表。",
+      true,
+      200
+    );
+    assertEquals(
+      "answer",
+      admin
+        .call("/knowledge/queries/" + third.get("query_id"), "GET", null, 200)
+        .get("mode")
+    );
+    assertTrue(ingestion.runOne());
+    assertEquals(
+      "answer",
+      admin
+        .call("/knowledge/queries/" + third.get("query_id"), "GET", null, 200)
+        .get("mode")
+    );
+    publishKnowledge(did, id(newer.get("version_id")));
+    assertEquals(
+      "revoked",
+      admin
+        .call("/knowledge/queries/" + third.get("query_id"), "GET", null, 200)
+        .get("mode")
     );
   }
 

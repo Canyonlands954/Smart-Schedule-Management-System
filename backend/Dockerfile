@@ -7,7 +7,7 @@ RUN mvn -B -q package -DskipTests
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 RUN addgroup -S schedule && adduser -S schedule -G schedule \
-    && mkdir -p /app/secrets && chown schedule:schedule /app/secrets && chmod 700 /app/secrets
+    && mkdir -p /app/secrets /app/knowledge && chown schedule:schedule /app/secrets /app/knowledge && chmod 700 /app/secrets /app/knowledge
 COPY --from=build /build/target/schedule-api-2.0.0.jar /app/api.jar
 USER schedule
 ENV API_HOST=0.0.0.0

@@ -1,5 +1,7 @@
 # 企业版部署与迁移
 
+本版本新增 PostgreSQL pgvector 扩展及企业知识库。已有部署先按 [RAG 升级说明](RAG_GUIDE.md#部署与升级) 备份并构建数据库镜像，首次升级不要直接跳过镜像构建。普通模型与向量模型在管理员页面分别配置。
+
 ## 本机启动
 
 需要 Java 17+、Maven 3.9+、Node.js 22.12+、PowerShell 7，以及运行中的 Docker Desktop（Linux 容器）。在 `enterprise` 目录执行：
@@ -33,6 +35,7 @@
 | 配置 | 用途 |
 | --- | --- |
 | `DB_PASSWORD` | PostgreSQL 密码，首次本机启动自动生成 |
+| `DB_PORT` | 本机PostgreSQL端口，默认55432；Windows保留该端口时改用空闲端口，例如54329 |
 | `DB_URL`、`DB_USER` | 默认 `jdbc:postgresql://127.0.0.1:55432/schedule`、`schedule` |
 | `API_HOST`、`API_PORT` | 默认 `127.0.0.1`、`18865` |
 | `AI_API_KEY` | 可选的服务器预置密钥；管理员尚未保存页面配置时使用 |
@@ -43,6 +46,9 @@
 | `ALLOWED_ORIGINS` | 允许写请求的完整来源地址，多个地址用逗号分隔 |
 | `SCHEDULE_SECURE_COOKIE` | 正式 HTTPS 访问时设为 `true` |
 | `IMPORT_SOURCE` | 可选的只读 SQLite 数据导入路径 |
+| `KNOWLEDGE_DIRECTORY` | 原文持久目录，默认 `.runtime/knowledge`；生产使用独立持久卷 |
+| `KNOWLEDGE_WORKER_ENABLED` | 默认true，关闭后仅暂停领取资料处理任务 |
+| `TEST_DB_URL` | 自动检查专用数据库地址，必须指向schedule_test |
 
 管理员可直接在“账户与管理”保存地址、模型名称及API密钥。三项值作为整体使用 AES-256-GCM 加密后存入 `ai_model_settings`，密钥不通过读取接口回显。客户端不做可逆混淆，正式部署通过HTTPS传输输入。配置与调用都在服务端检查管理员身份，团队负责人使用规则解析。页面保存的配置优先于服务器预置变量，停用或清除后不会自动重新启用预置密钥。
 
@@ -64,7 +70,7 @@ cd ../backend
 mvn package -DskipTests
 ```
 
-构建结果为 `frontend/dist` 和 `backend/target/schedule-api-2.0.0.jar`。启动脚本复制 JAR 到 `.runtime` 再运行，避免 Windows 上运行中的文件阻止下一次构建。修改后端后重新构建，并停止、重新启动应用；已有运行文件时启动脚本不会自动判断源码变化。
+构建结果为 `frontend/dist` 和 `backend/target/schedule-api-2.0.0.jar`。启动脚本复制 JAR 到 `.runtime` 再运行，避免 Windows 上运行中的文件阻止下一次构建。修改后端后停止并重新启动应用，脚本会根据源码和pom的修改时间重新构建；正在运行的服务不会被脚本强制替换。
 
 后端测试使用单独的 `schedule_test` 数据库，先在本机 PostgreSQL 中创建它，并在运行 Maven 的环境设置 `.env` 中的 `DB_PASSWORD`：
 

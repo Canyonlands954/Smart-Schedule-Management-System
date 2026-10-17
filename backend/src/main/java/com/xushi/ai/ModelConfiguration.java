@@ -192,7 +192,9 @@ public class ModelConfiguration {
     );
     String encrypted = box.encrypt(
       json.write(map("base_url", base, "model", model, "api_key", key)),
-      row.get("encrypted_payload") == null
+      db.count(
+        "SELECT (SELECT count(*) FROM ai_model_settings WHERE encrypted_payload IS NOT NULL)+(SELECT count(*) FROM knowledge_settings WHERE encrypted_payload IS NOT NULL)"
+      ) == 0
     );
     db.update(
       "UPDATE ai_model_settings SET encrypted_payload=?,enabled=?,revision=revision+1,updated_by=?,updated_at=clock_timestamp() WHERE id=1",

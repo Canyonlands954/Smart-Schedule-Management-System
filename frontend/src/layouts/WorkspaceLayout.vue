@@ -13,6 +13,7 @@ const navs = [
   ["calendar", "calendar", "我的日程"],
   ["execution", "check", "执行看板"],
   ["ai", "sparkles", "AI 日程助手"],
+  ["knowledge", "folder", "企业知识库"],
   ["conflicts", "alert", "冲突管理"],
   ["teams", "users", "团队管理"],
   ["notifications", "bell", "通知中心"],

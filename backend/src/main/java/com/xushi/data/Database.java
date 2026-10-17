@@ -41,7 +41,7 @@ public class Database {
               );
           }
           if (value != null && md.getColumnTypeName(i).equals("jsonb")) value =
-            json.read(value);
+            json.value(value);
           row.put(key, value);
         }
         return row;

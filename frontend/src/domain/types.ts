@@ -85,6 +85,8 @@ export interface Workspace {
   ai_mode: string;
 }
 export interface Draft extends Partial<ScheduleEvent> {
+  knowledge_query_id?: string;
+  knowledge_assistance?: import("./knowledge").KnowledgeReply;
   action?: "create" | "update";
   original_draft_id?: number | null;
   planning?: CheckResult;

@@ -1,6 +1,11 @@
 param([string]$ImportSource = '')
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    foreach ($dockerFolder in @((Join-Path $env:LOCALAPPDATA 'Programs/DockerDesktop/resources/bin'),(Join-Path $env:ProgramFiles 'Docker/Docker/resources/bin'))) {
+        if (Test-Path -LiteralPath (Join-Path $dockerFolder 'docker.exe')) { $env:PATH="$dockerFolder;$env:PATH";break }
+    }
+}
 foreach ($commandName in 'java','mvn','node','npm.cmd','docker') {
     if (-not (Get-Command $commandName -ErrorAction SilentlyContinue)) { throw "Missing required command: $commandName. See DEPLOYMENT.md." }
 }
@@ -24,7 +29,13 @@ function Test-Api {
 $ownedProcesses=@()
 if (Test-Path -LiteralPath '.runtime/pids.json') { $ownedProcesses=@(Get-Content -LiteralPath '.runtime/pids.json' -Raw | ConvertFrom-Json) }
 if (-not (Test-Api)) {
-    if (-not (Test-Path -LiteralPath 'backend/target/schedule-api-2.0.0.jar')) {
+    $jarFile='backend/target/schedule-api-2.0.0.jar'
+    $needsBuild=-not (Test-Path -LiteralPath $jarFile)
+    if (-not $needsBuild) {
+        $jarTime=(Get-Item -LiteralPath $jarFile).LastWriteTimeUtc
+        $needsBuild=(Get-Item -LiteralPath 'backend/pom.xml').LastWriteTimeUtc -gt $jarTime -or @((Get-ChildItem -LiteralPath 'backend/src/main' -File -Recurse) | Where-Object { $_.LastWriteTimeUtc -gt $jarTime }).Count -gt 0
+    }
+    if ($needsBuild) {
         & mvn -B -q -f backend/pom.xml package -DskipTests
         if ($LASTEXITCODE -ne 0) { throw 'Backend build failed.' }
     }

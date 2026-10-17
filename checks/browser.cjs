@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');
 const {mkdirSync}=require('node:fs');
-const {chromium}=require('playwright');
+const {chromium,executable}=require('./browser-runtime.cjs');
 const http=require('node:http');
 const base=process.argv[2]||'http://127.0.0.1:8877';
 if(new URL(base).hostname!=='127.0.0.1'||new URL(base).port!=='8877')throw Error('Use only the isolated schedule_test service at 8877.');
@@ -10,7 +10,7 @@ const password='OnlyForIntegrationTests!2026';
   const fixture=http.createServer((req,res)=>{let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{try{assert.equal(req.url,'/v1/chat/completions');assert.equal(req.headers.authorization,'Bearer browser-fixture-key');assert(!body.includes('browser-fixture-key'));const payload=JSON.parse(body);modelRequests.push(payload);const diagnostic=payload.messages.length===1;const content=diagnostic?{ok:true}:{title:'模型工作安排',target_id:2,start:null,end:null,location:'5号会议室',notes:'测试会议资料',warnings:[]};res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({choices:[{message:{content:JSON.stringify(content)}}]}));}catch(e){res.writeHead(500);res.end('{}');}});});
   await new Promise(resolve=>fixture.listen(0,'127.0.0.1',resolve));
   const modelBase='http://127.0.0.1:'+fixture.address().port+'/v1';
-  const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_EXECUTABLE});
+  const browser=await chromium.launch({headless:true,executablePath:executable}).catch(async e=>{await new Promise(resolve=>fixture.close(resolve));throw e;});
   const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   const titles={dashboard:'你好，刘总',calendar:'我的日程',execution:'执行看板',ai:'AI 日程助手',teams:'团队管理',notifications:'通知中心',settings:'账户与管理',metrics:'协作分析',conflicts:'冲突管理'}; const nav=async id=>{await page.locator(`nav [data-id="${id}"]`).click();await page.waitForURL(base+'/'+id);await page.waitForFunction(title=>document.querySelector('#main h1')?.textContent.includes(title),titles[id]);await page.waitForTimeout(80);};

@@ -12,6 +12,7 @@ export const useWorkspace = defineStore("workspace", () => {
     selected = ref<ScheduleEvent | null>(null),
     editor = ref<Partial<ScheduleEvent> | null>(null);
   const aiText = ref(""),
+    aiKnowledgeQuery = ref(""),
     aiConversation = ref(""),
     aiRevision = ref(0),
     aiDraft = ref<Draft | null>(null),
@@ -47,6 +48,7 @@ export const useWorkspace = defineStore("workspace", () => {
         selected.value = null;
         editor.value = null;
         aiText.value = "";
+        aiKnowledgeQuery.value = "";
         aiDraft.value = null;
         aiChat.value = [];
         aiConversation.value = "";
@@ -69,6 +71,7 @@ export const useWorkspace = defineStore("workspace", () => {
     selected.value = null;
     editor.value = null;
     aiText.value = "";
+    aiKnowledgeQuery.value = "";
     aiDraft.value = null;
     aiChat.value = [];
     aiConversation.value = "";
@@ -101,6 +104,7 @@ export const useWorkspace = defineStore("workspace", () => {
   }
   return {
     aiText,
+    aiKnowledgeQuery,
     aiConversation,
     aiRevision,
     aiDraft,

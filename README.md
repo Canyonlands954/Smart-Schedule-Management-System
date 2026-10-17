@@ -4,6 +4,8 @@
 
 核心功能包括真实注册登录、团队负责人权限、管理员加密模型配置、多轮 AI 澄清、已有日程的上下文改期、带解释的候选排期、单接收人安排、准备清单、执行反馈、通知、日志、日历导出和协作统计。保留深色导航、浅色工作区及统一蓝色操作控件。
 
+新增企业知识库：权限内的混合检索、文档版本发布、带引用问答及需要明确采用的日程建议。接入与部署步骤见 [RAG 使用与部署说明](RAG_GUIDE.md)，`examples/` 提供可修改后上传的演示资料。
+
 **“带上全组参会”仅写入指定接收人的一项日程，由接收人组织成员。** 系统不会给全组自动创建日程或发送通知。
 
 ## 开始使用
@@ -16,12 +18,14 @@
 
 ## 工程布局
 
-- `frontend/src/pages/`：九个工作页面及登录注册。
+- `frontend/src/pages/`：十个工作页面及登录注册。
 - `frontend/src/components/`：日程编辑器、详情及实体表单。
 - `frontend/src/stores/`：登录、共享工作数据与当前 AI 会话；对话草稿同时保存到服务器。
 - `frontend/src/services/`、`domain/`：HTTP 客户端、类型、日期与状态转换。
 - `backend/src/main/java/com/xushi/`：按认证、组织、日程、AI、协作、数据迁移拆分。
 - `backend/src/main/resources/db/migration/`：Flyway 数据库版本脚本。
+- `backend/src/main/java/com/xushi/knowledge/`：资料入库、权限检索、向量接口、引用问答及后台任务。
+- `database/`：与 PostgreSQL 17 Alpine 数据卷兼容的 pgvector 镜像构建。
 - `backend/src/test/`：使用独立 PostgreSQL 测试库的检查。
 - `checks/browser.cjs`：隔离浏览器业务与布局检查。
 - `compose.yml`：本机 PostgreSQL；`compose.production.yml`：可选的 API 与 Nginx 容器部署。

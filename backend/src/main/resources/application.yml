@@ -5,7 +5,7 @@ server:
     max-http-form-post-size: 512KB
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://127.0.0.1:55432/schedule}
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:${DB_PORT:55432}/schedule}
     username: ${DB_USER:schedule}
     password: ${DB_PASSWORD:}
     hikari:
@@ -14,6 +14,10 @@ spring:
   jackson:
     serialization:
       write-dates-as-timestamps: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
 management:
   endpoints:
     web:
@@ -26,6 +30,9 @@ schedule:
   secure-cookie: ${SCHEDULE_SECURE_COOKIE:false}
   allowed-origins: ${ALLOWED_ORIGINS:http://127.0.0.1:8765,http://localhost:8765,http://127.0.0.1:8876,http://localhost:8876}
   import-source: ${IMPORT_SOURCE:}
+  knowledge:
+    directory: ${KNOWLEDGE_DIRECTORY:.runtime/knowledge}
+    worker-enabled: ${KNOWLEDGE_WORKER_ENABLED:true}
   ai:
     key: ${AI_API_KEY:}
     base-url: ${AI_BASE_URL:https://api.openai.com/v1}

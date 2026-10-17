@@ -5,6 +5,7 @@ import static com.xushi.common.Fields.*;
 import com.xushi.auth.*;
 import com.xushi.common.*;
 import com.xushi.data.Database;
+import com.xushi.knowledge.KnowledgeAnswerService;
 import com.xushi.schedule.*;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.*;
@@ -26,6 +27,7 @@ public class AiService {
   private final EventRepository events;
   private final ScheduleService schedules;
   private final TransactionTemplate tx;
+  private final KnowledgeAnswerService knowledge;
 
   public AiService(
     Database db,
@@ -37,7 +39,8 @@ public class AiService {
     Json json,
     EventRepository events,
     ScheduleService schedules,
-    PlatformTransactionManager manager
+    PlatformTransactionManager manager,
+    KnowledgeAnswerService knowledge
   ) {
     this.db = db;
     this.auth = auth;
@@ -49,6 +52,7 @@ public class AiService {
     this.events = events;
     this.schedules = schedules;
     tx = new TransactionTemplate(manager);
+    this.knowledge = knowledge;
   }
 
   private User manager(HttpServletRequest request) {
@@ -209,6 +213,7 @@ public class AiService {
       authorized(u, state);
       var d = object(state.get("draft"));
       d.remove("planning");
+      refreshKnowledge(u, d);
       boolean sent =
         d.get("draft_id") != null &&
         db.count(
@@ -398,6 +403,37 @@ public class AiService {
     );
     var state = object(context.get("state"));
     var draft = object(state.get("draft"));
+    var acting = auth.require(request);
+    if (
+      Boolean.TRUE.equals(data.get("use_knowledge")) ||
+      !s(data, "knowledge_query_id").isBlank()
+    ) {
+      auth.admin(acting);
+      Map<String, Object> assistance;
+      if (!s(data, "knowledge_query_id").isBlank()) assistance = knowledge.load(
+        acting,
+        s(data, "knowledge_query_id")
+      );
+      else {
+        String question =
+          s(draft, "title") +
+          "\n" +
+          s(draft, "original_text") +
+          "\n" +
+          s(context, "text");
+        assistance = knowledge.ask(
+          request,
+          map(
+            "question",
+            question.substring(0, Math.min(2000, question.length())),
+            "intent",
+            "schedule"
+          )
+        );
+      }
+      draft.put("knowledge_query_id", assistance.get("query_id"));
+      draft.put("knowledge_assistance", assistance);
+    }
     final ModelConfiguration.Connection connection = Boolean.TRUE.equals(
       context.get("use_model")
     )
@@ -463,6 +499,7 @@ public class AiService {
         403
       );
       authorized(u, state);
+      refreshKnowledge(u, draft);
       if (connection != null) {
         auth.admin(u);
         if (!configuration.current(connection)) throw new Problem(
@@ -571,5 +608,18 @@ public class AiService {
         assistant
       );
     });
+  }
+
+  private void refreshKnowledge(User u, Map<String, Object> draft) {
+    if (s(draft, "knowledge_query_id").isBlank()) return;
+    if (!u.admin()) {
+      draft.remove("knowledge_assistance");
+      draft.remove("knowledge_query_id");
+      return;
+    }
+    draft.put(
+      "knowledge_assistance",
+      knowledge.load(u, s(draft, "knowledge_query_id"))
+    );
   }
 }

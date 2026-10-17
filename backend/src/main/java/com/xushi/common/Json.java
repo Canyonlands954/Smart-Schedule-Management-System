@@ -36,4 +36,12 @@ public class Json {
   public Map<String, Object> copy(Map<String, Object> value) {
     return read(write(value));
   }
+
+  public Object value(Object raw) {
+    try {
+      return mapper.readValue(raw.toString(), Object.class);
+    } catch (Exception e) {
+      throw new IllegalArgumentException("Invalid JSON", e);
+    }
+  }
 }

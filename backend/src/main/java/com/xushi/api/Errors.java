@@ -31,6 +31,15 @@ public class Errors {
     );
   }
 
+  @ExceptionHandler(
+    org.springframework.web.multipart.MaxUploadSizeExceededException.class
+  )
+  public ResponseEntity<?> uploadSize(Exception e) {
+    return ResponseEntity.status(413).body(
+      map("error", "文件不能超过10MB，请拆分后上传。")
+    );
+  }
+
   @ExceptionHandler({
     HttpMessageNotReadableException.class,
     IllegalArgumentException.class,

@@ -39,14 +39,22 @@ public class RequestGuard extends OncePerRequestFilter {
         reject(response, 403, "请求来源不匹配");
         return;
       }
+      boolean upload =
+        r.getMethod().equals("POST") &&
+        r
+          .getRequestURI()
+          .matches("/api/knowledge/documents(?:/[0-9]+/versions)?") &&
+        r.getContentType() != null &&
+        r.getContentType().startsWith("multipart/form-data");
       if (
-        r.getContentType() == null ||
-        !r.getContentType().startsWith("application/json")
+        !upload &&
+        (r.getContentType() == null ||
+          !r.getContentType().startsWith("application/json"))
       ) {
         reject(response, 415, "请求必须为JSON");
         return;
       }
-      if (r.getContentLengthLong() > 512000) {
+      if (r.getContentLengthLong() > (upload ? 11 * 1024 * 1024 : 512000)) {
         reject(response, 413, "请求内容过大");
         return;
       }

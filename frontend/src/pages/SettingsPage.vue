@@ -7,6 +7,7 @@ import type { Room, AuditEntry } from "../domain/types";
 import PageHead from "../components/PageHead.vue";
 import SchedulingPolicyForm from "../components/SchedulingPolicyForm.vue";
 import ModelConfigurationForm from "../components/ModelConfigurationForm.vue";
+import EmbeddingConfigurationForm from "../components/EmbeddingConfigurationForm.vue";
 import EntityDialog, { type EntityField } from "../components/EntityDialog.vue";
 const store = useWorkspace(),
   code = ref(""),
@@ -107,6 +108,7 @@ async function audit() {
     <ModelConfigurationForm />
   </div>
   <SchedulingPolicyForm />
+  <EmbeddingConfigurationForm v-if="store.admin" />
   <template v-if="store.admin"
     ><section class="panel section-gap">
       <div class="panelhead">
