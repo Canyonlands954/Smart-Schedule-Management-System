@@ -18,6 +18,8 @@
 
 已有版本的数据导入、生产构建、AI 配置与备份见 [部署说明](DEPLOYMENT.md)。当前架构、事务与兼容边界见 [架构说明](ARCHITECTURE.md)，操作流程见 [使用说明](USER_GUIDE.md)。
 
+本机接口检查可执行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\checks\api-smoke.ps1 -Username 你的平台账号`；密码按提示输入，不写入文件。公开接口检查、管理员模型连接测试及隔离回归步骤见 [接口测试说明](API_TESTING.md)。
+
 ## 工程布局
 
 - `frontend/src/pages/`：十个工作页面及登录注册。

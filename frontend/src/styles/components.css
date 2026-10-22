@@ -2231,7 +2231,7 @@ progress::-moz-progress-bar {
   }
 }
 
-/* Enterprise shell: dark navigation, light workspace, one shared action color. */
+/* Enterprise shell: shared work surfaces and one consistent action color. */
 :root {
   --teal: #3268ad;
   --teal-dark: #26548f;
@@ -2289,99 +2289,99 @@ textarea[readonly] {
   box-shadow: none;
 }
 
-/* Persistent navigation stays visually distinct from every work page. */
+/* Light navigation uses a soft blue selection without changing work surfaces. */
 .sidebar {
-  background: var(--nav-bg);
-  color: #f0f4f9;
-  border-color: var(--nav-bg);
+  background: #edf2f7;
+  color: #334155;
+  border-color: #dfe6ee;
 }
 .sidebar .brand {
-  color: #fff;
+  color: #223246;
 }
 .sidebar .brand-en {
-  color: #97aac1;
+  color: #71839c;
 }
 .sidebar .workspace {
-  background: var(--nav-surface);
-  border-color: var(--nav-line);
-  color: #e4ebf4;
+  background: #fff;
+  border-color: #dce4ee;
+  color: #34465f;
 }
 .sidebar .workspace > .icon {
-  color: #9fb5cf;
+  color: #6684aa;
 }
 .sidebar .workspace span,
 .sidebar .navlabel {
-  color: #a0b1c7;
+  color: #66768d;
 }
 .sidebar nav button {
-  color: var(--nav-text);
+  color: #526174;
   border-radius: 8px;
 }
 .sidebar nav button .navicon {
-  color: #a1b2c7;
+  color: #70829a;
   background: none;
 }
 .sidebar nav button:hover {
-  background: #2a3a50;
-  color: #fff;
+  background: #e4ebf4;
+  color: #21364f;
 }
 .sidebar nav button.active {
-  background: #2b4d76;
-  color: #fff;
-  box-shadow: inset 3px 0 #78a8e4;
+  background: #dce8f8;
+  color: #255384;
+  box-shadow: inset 3px 0 #5b83b8;
 }
 .sidebar nav button.active .navicon,
 .sidebar nav button:hover .navicon {
   color: inherit;
 }
 .sidebar nav .count {
-  background: #36475e;
-  color: #dae5f3;
+  background: #dae3ef;
+  color: #3f5d82;
 }
 .sidebar nav button.active .count {
-  background: #3d608b;
-  color: #fff;
+  background: #f4f8ff;
+  color: #255384;
 }
 .sidebar .demo {
-  background: var(--nav-surface);
-  border-color: var(--nav-line);
-  color: #e0e8f3;
+  background: #fff;
+  border-color: #dce4ee;
+  color: #3b4d65;
 }
 .sidebar .demo p {
-  color: #a8b8cd;
+  color: #718199;
 }
 .sidebar .demo button {
-  background: #2c3e55;
-  border-color: #435671;
-  color: #dfe8f5;
+  background: #f4f7fb;
+  border-color: #d5deea;
+  color: #365d8e;
 }
 .sidebar .demo button:hover {
-  background: #3b506e;
-  border-color: #6c87aa;
+  background: #e5edf7;
+  border-color: #bacde4;
 }
 .sidebar .profile {
-  border-top-color: var(--nav-line);
-  color: #f0f4f9;
+  border-top-color: #d8e1ed;
+  color: #334155;
 }
 .sidebar .profile:hover {
   background: transparent;
-  color: #fff;
+  color: #1e3a5f;
 }
 .sidebar .profile small {
-  color: #a8b8cd;
+  color: #718199;
 }
 .sidebar .profile > .icon {
-  color: #a8b8cd;
+  color: #718199;
 }
 .sidebar .profile .avatar {
-  background: #3b5270;
-  color: #eaf1fb;
+  background: #dae5f2;
+  color: #375a86;
 }
 .sidebar :focus-visible {
-  outline-color: #94bfff;
+  outline-color: #6c93c9;
 }
 .sidebar {
-  scrollbar-color: #53657c var(--nav-bg);
+  scrollbar-color: #b9c7d8 #edf2f7;
 }
 
 /* Light work surfaces, neutral headings and a consistent primary action. */
@@ -2787,7 +2787,7 @@ dialog::backdrop {
   color: #66778c;
 }
 
-/* The entry screen uses the same navigation and action palette. */
+/* The entry screen retains its original dark presentation. */
 .login-story {
   background: var(--nav-bg);
 }
@@ -2813,7 +2813,7 @@ dialog::backdrop {
 }
 @media (max-width: 760px) {
   .sidebar nav button.active {
-    box-shadow: inset 0 -2px #94bfff;
+    box-shadow: inset 0 -2px #5b83b8;
   }
   .hero-summary {
     border-top-color: var(--line);

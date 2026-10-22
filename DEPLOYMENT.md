@@ -92,6 +92,8 @@ Get-Content .env | ForEach-Object {
     [Environment]::SetEnvironmentVariable($Matches[1],$Matches[2],'Process')
   }
 }
+$taskDatabasePort = if ($env:DB_PORT) { $env:DB_PORT } else { '55432' }
+$env:TEST_DB_URL = "jdbc:postgresql://127.0.0.1:$taskDatabasePort/schedule_test"
 mvn -f backend/pom.xml test
 ```
 

@@ -19,7 +19,7 @@ if(-not(Test-Path -LiteralPath 'frontend/node_modules/playwright')){& npm.cmd --
 # V4 must already be applied to schedule_test by the backend integration tests.
 $testSchema=& docker exec xushi-postgres psql -U schedule -d schedule_test -tAc "SELECT to_regclass('public.knowledge_settings')"
 if($LASTEXITCODE -ne 0 -or $testSchema.Trim() -ne 'knowledge_settings'){throw 'Run backend tests against schedule_test first to apply its schema.'}
-Get-Content -LiteralPath 'checks/reset-browser.sql' -Raw | & docker exec -i xushi-postgres psql -U schedule -d schedule_test -v ON_ERROR_STOP=1 *> .runtime/browser-reset.log
+Get-Content -LiteralPath 'checks/reset-browser.sql' -Raw | & docker exec -i xushi-postgres psql -U schedule -d schedule_test -v ON_ERROR_STOP=1 -c 'SET client_min_messages=warning' -f - *> .runtime/browser-reset.log
 if($LASTEXITCODE -ne 0){throw 'Isolated test database reset failed'}
 $databasePort=if($env:DB_PORT){$env:DB_PORT}else{'55432'}
 $env:DB_URL="jdbc:postgresql://127.0.0.1:$databasePort/schedule_test"
@@ -39,7 +39,7 @@ try {
     $webProcess=Start-Process -FilePath (Get-Command node).Source -ArgumentList @('node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','8877','--strictPort') -WorkingDirectory (Join-Path $projectDirectory 'frontend') -WindowStyle Hidden -RedirectStandardOutput (Join-Path $projectDirectory '.runtime/rag-browser-web.log') -RedirectStandardError (Join-Path $projectDirectory '.runtime/rag-browser-web.err.log') -PassThru
     $owned+=@{id=$webProcess.Id;started=$webProcess.StartTime.ToUniversalTime().ToString('o')}
     $ready=$false
-    for($attempt=0;$attempt -lt 30;$attempt++){try{$page=Invoke-WebRequest 'http://127.0.0.1:8877' -TimeoutSec 2;if($page.StatusCode -eq 200){$ready=$true;break}}catch{};Start-Sleep -Milliseconds 500}
+    for($attempt=0;$attempt -lt 30;$attempt++){try{$page=Invoke-WebRequest 'http://127.0.0.1:8877' -UseBasicParsing -TimeoutSec 2;if($page.StatusCode -eq 200){$ready=$true;break}}catch{};Start-Sleep -Milliseconds 500}
     if(-not $ready){throw 'Test frontend startup timed out'}
     & node checks/browser.cjs
     if($LASTEXITCODE -ne 0){throw 'Existing browser workflow regression failed'}
